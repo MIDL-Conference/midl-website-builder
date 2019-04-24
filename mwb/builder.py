@@ -23,7 +23,7 @@ def parse_content_file(filename):
     buffer = ''
     header = {'layout': 'default'}
 
-    with open(filename) as file_stream:
+    with open(filename, encoding='utf-8') as file_stream:
         for row in file_stream:
             header_delimiter = row.strip().startswith('---')
 
@@ -60,27 +60,32 @@ class WebsiteBuilder:
             output_style='compressed'
         )
 
+    def print(self, message):
+        if self.verbose:
+            print(message)
+
     def build(self, dstdir):
         # Clear output directory
+        self.print('Preparing output directory')
         if path.exists(dstdir):
             shutil.rmtree(dstdir)
-        makedirs(dstdir)
+        makedirs(dstdir, exist_ok=True)
 
         # Copy static files
-        static_dirs = [
-            path.join(self.theme, 'static'),
-            path.join(self.srcdir, 'static')
-        ]
+        self.print('Copying static files')
 
-        for static_dir in static_dirs:
+        for static_src in (self.theme, self.srcdir):
+            static_dir = path.join(static_src, 'static')
             if path.exists(static_dir):
                 dirutil.copy_tree(static_dir, dstdir)
 
         # Compile assets and pages
+        self.print('Compiling stylesheets')
         stylesheets = self.compile_stylesheets(dstdir)
 
+        self.print('Compiling pages')
         vars = {
-            'mwb': {'version': mwb_version},
+            'mwb': { 'version': mwb_version },
             'config': self.config,
             'stylesheets': stylesheets
         }
@@ -90,7 +95,7 @@ class WebsiteBuilder:
         for ext in ('yaml', 'yml'):
             cfgfile = path.join(self.srcdir, 'website.' + ext)
             if path.exists(cfgfile):
-                with open(cfgfile) as file_stream:
+                with open(cfgfile, encoding='utf-8') as file_stream:
                     return yaml.safe_load(file_stream)
 
         return dict()
