@@ -8,6 +8,9 @@ from glob import glob
 from collections import OrderedDict
 from markdown import markdown as parse_markdown
 
+from . import __version__ as mwb_version
+
+
 # Suppress future warning when importing the scss package
 import warnings
 with warnings.catch_warnings():
@@ -77,6 +80,7 @@ class WebsiteBuilder:
         stylesheets = self.compile_stylesheets(dstdir)
 
         vars = {
+            'mwb': {'version': mwb_version},
             'config': self.config,
             'stylesheets': stylesheets
         }

@@ -1,9 +1,10 @@
-from setuptools import setup
+import mwb
+import setuptools
 
 
-setup(
+setuptools.setup(
     name='MIDL website builder',
-    version='0.1',
+    version=mwb.__version__,
     description='Tool for building static websites for the MIDL conference series',
     url='https://midl.io',
     license='CC-BY-SA-4.0',
