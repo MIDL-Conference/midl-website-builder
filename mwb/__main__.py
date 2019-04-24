@@ -2,7 +2,7 @@ import sys
 
 from os import path
 from argparse import ArgumentParser
-from .builder import WebsiteBuilder, WebsiteBuildError
+from .builder import WebsiteBuilder
 
 
 # Parse command line arguments
@@ -16,7 +16,7 @@ args = parser.parse_args()
 builder = WebsiteBuilder(path.abspath(args.srcdir), verbose=not args.silent)
 try:
     builder.build(path.abspath(args.dstdir))
-except WebsiteBuildError as error:
+except Exception as error:
     if not args.silent:
         print(error)
     sys.exit(-1)
