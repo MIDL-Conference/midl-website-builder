@@ -14,11 +14,4 @@ args = parser.parse_args()
 
 # Build website
 builder = WebsiteBuilder(path.abspath(args.srcdir), verbose=not args.silent)
-try:
-    builder.build(path.abspath(args.dstdir))
-except Exception as error:
-    if not args.silent:
-        print(error)
-    sys.exit(-1)
-else:
-    sys.exit(0)
+builder.build(path.abspath(args.dstdir))
