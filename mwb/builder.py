@@ -135,7 +135,7 @@ class WebsiteBuilder:
         for name, scss_file in stylesheets.items():
             css = self.scss_compiler.compile(scss_file)
             css_file = path.join(css_dir, '{}.css'.format(name))
-            with open(css_file, 'w') as file_stream:
+            with open(css_file, 'w', encoding='utf-8') as file_stream:
                 file_stream.write(css)
 
             compiled[name] = {
@@ -199,5 +199,5 @@ class WebsiteBuilder:
                 html_dir = path.dirname(html_file)
                 if not path.exists(html_dir):
                     makedirs(html_dir)
-                with open(html_file, 'w') as file_stream:
+                with open(html_file, 'w', encoding='utf-8') as file_stream:
                     file_stream.write(html)
