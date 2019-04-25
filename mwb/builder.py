@@ -166,8 +166,14 @@ class WebsiteBuilder:
         tpl_loader = jinja2.FileSystemLoader(list(self.asset_dirs('layouts')))
         tpl_env = jinja2.Environment(loader=tpl_loader)
 
+        # Different location of the content?
+        try:
+            content_name = self.config['content']
+        except KeyError:
+            content_name = 'pages'
+
         for ext in ('.md', '.html'):
-            pages = self.find_content(name='pages', ext=ext)
+            pages = self.find_content(name=content_name, ext=ext)
             for page_name, page_file in pages.items():
                 # Read header and markup from file
                 header, markup = parse_content_file(page_file)

@@ -1,5 +1,3 @@
-import sys
-
 from os import path
 from argparse import ArgumentParser
 from .builder import WebsiteBuilder
