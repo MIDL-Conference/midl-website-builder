@@ -223,9 +223,20 @@ class WebsiteBuilder:
                 else:
                     html = markup.strip()
 
+                # Determine permalink of this page
+                try:
+                    permalink = header['permalink']
+                    if not permalink.startswith('/'):
+                        permalink = '/' + permalink
+                    if not permalink.endswith('.html') and not permalink.endswith('/'):
+                        permalink += '/'
+                except KeyError:
+                    permalink = page_name + '.html'
+
                 # Render content
                 local_vars = global_vars.copy()
                 local_vars.update(header)
+                local_vars['permalink'] = permalink
 
                 try:
                     tpl_content = jinja2.Template(html)
@@ -245,7 +256,11 @@ class WebsiteBuilder:
                     continue
 
                 # Write HTML to output directory
-                html_file = path.join(dstdir, page_name + '.html')
+                filename = permalink[1:]
+                if filename.endswith('/'):
+                    filename += 'index.html'
+
+                html_file = path.join(dstdir, filename)
                 html_dir = path.dirname(html_file)
                 makedirs(html_dir, exist_ok=True)
                 with open(html_file, 'w', encoding='utf-8') as file_stream:
