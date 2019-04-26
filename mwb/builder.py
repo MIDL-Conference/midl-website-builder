@@ -6,6 +6,7 @@ import distutils.dir_util as dirutil
 from os import path, makedirs
 from glob import glob
 from collections import OrderedDict
+from numbers import Number
 from markdown import markdown as parse_markdown
 
 from . import __version__ as mwb_version
@@ -16,6 +17,8 @@ import warnings
 with warnings.catch_warnings():
     warnings.simplefilter(action='ignore', category=FutureWarning)
     import scss
+    import scss.namespace
+    import scss.types
 
 
 def parse_content_file(filename):
@@ -44,6 +47,22 @@ def parse_content_file(filename):
     return header, markup
 
 
+def convert_to_scss_variable(var):
+    if isinstance(var, str):
+        if var.startswith('#'):
+            return scss.types.Color.from_hex(var)
+        else:
+            return scss.types.String(var)
+    elif isinstance(var, Number):
+        return scss.types.Number(var)
+    elif isinstance(var, list):
+        return scss.types.List(convert_to_scss_variable(v) for v in var)
+    elif isinstance(var, dict):
+        return scss.types.Map([(k, convert_to_scss_variable(v)) for k, v in var.items()])
+    else:
+        return scss.types.Null()
+
+
 class WebsiteBuildError(Exception):
     pass
 
@@ -54,10 +73,18 @@ class WebsiteBuilder:
         self.verbose = verbose
 
         self.config = self.read_global_configuration()
+
+        # Populate scss namespace with variables from global configuration
+        namespace = scss.namespace.Namespace()
+        for name, value in self.config.items():
+            converted_value = convert_to_scss_variable(value)
+            namespace.set_variable('${}'.format(name), converted_value)
+
         self.scss_compiler = scss.compiler.Compiler(
             search_path=list(self.asset_dirs('stylesheets')),
             import_static_css=True,
-            output_style='compressed'
+            output_style='compressed',
+            namespace=namespace
         )
 
     def print(self, message):
@@ -73,7 +100,6 @@ class WebsiteBuilder:
 
         # Copy static files
         self.print('Copying static files')
-
         for static_src in (self.theme, self.srcdir):
             static_dir = path.join(static_src, 'static')
             if path.exists(static_dir):
@@ -138,11 +164,18 @@ class WebsiteBuilder:
         stylesheets = self.find_assets(name='stylesheets', ext='.scss')
         compiled = dict()
         for name, scss_file in stylesheets.items():
+            if self.verbose:
+                print(' > compiling {}'.format(path.relpath(scss_file, self.srcdir)))
+
+            # Compile from SCSS to CSS
             css = self.scss_compiler.compile(scss_file)
             css_file = path.join(css_dir, '{}.css'.format(name))
+
+            # Write to output directory
             with open(css_file, 'w', encoding='utf-8') as file_stream:
                 file_stream.write(css)
 
+            # Populate dictionary with all compiled stylesheet files and their new locations
             compiled[name] = {
                 'path': '/' + path.relpath(css_file, dstdir).replace('\\', '/')
             }
@@ -172,9 +205,15 @@ class WebsiteBuilder:
         except KeyError:
             content_name = 'pages'
 
+        if self.verbose:
+            print(' >> compiling content "{}"'.format(content_name))
+
         for ext in ('.md', '.html'):
             pages = self.find_content(name=content_name, ext=ext)
             for page_name, page_file in pages.items():
+                if self.verbose:
+                    print(' > compiling {}'.format(path.relpath(page_file, self.srcdir)))
+
                 # Read header and markup from file
                 header, markup = parse_content_file(page_file)
 
@@ -193,7 +232,7 @@ class WebsiteBuilder:
                     local_vars['content'] = tpl_content.render(**local_vars)
                 except jinja2.exceptions.TemplateError as e:
                     if self.verbose:
-                        print(e.message)
+                        print('Rendering page content failed: {}'.format(e.message))
                     continue
 
                 # Render layout
@@ -202,13 +241,12 @@ class WebsiteBuilder:
                     html = template.render(**local_vars)
                 except jinja2.exceptions.TemplateError as e:
                     if self.verbose:
-                        print(e.message)
+                        print('Rendering page layout failed: {}'.format(e.message))
                     continue
 
                 # Write HTML to output directory
                 html_file = path.join(dstdir, page_name + '.html')
                 html_dir = path.dirname(html_file)
-                if not path.exists(html_dir):
-                    makedirs(html_dir)
+                makedirs(html_dir, exist_ok=True)
                 with open(html_file, 'w', encoding='utf-8') as file_stream:
                     file_stream.write(html)
