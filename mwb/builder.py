@@ -85,7 +85,7 @@ class WebsiteBuilder:
 
         self.print('Compiling pages')
         vars = {
-            'mwb': { 'version': mwb_version },
+            'mwb': {'version': mwb_version},
             'config': self.config,
             'stylesheets': stylesheets
         }
