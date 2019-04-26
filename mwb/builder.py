@@ -267,6 +267,9 @@ class WebsiteBuilder:
                     filename += 'index.html'
 
                 html_file = path.join(dstdir, filename)
+                if self.verbose and path.exists(html_file):
+                    print('   warning: overwriting existing page with same name!')
+
                 html_dir = path.dirname(html_file)
                 makedirs(html_dir, exist_ok=True)
                 with open(html_file, 'w', encoding='utf-8') as file_stream:
