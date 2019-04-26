@@ -205,9 +205,6 @@ class WebsiteBuilder:
         except KeyError:
             content_name = 'pages'
 
-        if self.verbose:
-            print(' >> compiling content "{}"'.format(content_name))
-
         for ext in ('.md', '.html'):
             pages = self.find_content(name=content_name, ext=ext)
             for page_name, page_file in pages.items():
@@ -228,10 +225,19 @@ class WebsiteBuilder:
                     permalink = header['permalink']
                     if not permalink.startswith('/'):
                         permalink = '/' + permalink
-                    if not permalink.endswith('.html') and not permalink.endswith('/'):
+                    if not permalink.endswith('.html') and not permalink.endswith('/') and permalink != '/':
                         permalink += '/'
                 except KeyError:
-                    permalink = page_name + '.html'
+                    permalink = '/' + page_name.replace('\\', '/')
+                    if permalink == 'index':
+                        permalink = '/'
+                    elif permalink.endswith('/index'):
+                        permalink = permalink[:-len('index')]
+                    else:
+                        permalink += '.html'
+
+                if self.verbose:
+                    print('   permalink: {}'.format(permalink))
 
                 # Render content
                 local_vars = global_vars.copy()
@@ -257,7 +263,7 @@ class WebsiteBuilder:
 
                 # Write HTML to output directory
                 filename = permalink[1:]
-                if filename.endswith('/'):
+                if filename == '' or filename.endswith('/'):
                     filename += 'index.html'
 
                 html_file = path.join(dstdir, filename)
