@@ -8,6 +8,7 @@ from glob import glob
 from collections import OrderedDict
 from numbers import Number
 from markdown import markdown as parse_markdown
+from yaml.error import YAMLError
 
 from . import __version__ as mwb_version
 
@@ -22,26 +23,32 @@ with warnings.catch_warnings():
 
 
 def parse_content_file(filename):
+    # Read file into buffers
     mode = '?'
     buffer = ''
-    header = {'layout': 'default'}
+    header_buffer = ''
 
     with open(filename, encoding='utf-8') as file_stream:
         for row in file_stream:
             header_delimiter = row.strip().startswith('---')
 
-            if header_delimiter:
+            if header_delimiter and mode != 'markup':
                 if mode == '?':
                     mode = 'header'
                 elif mode == 'header':
-                    header.update(yaml.safe_load(buffer))
+                    header_buffer = buffer
                     buffer = ''
                     mode = 'markup'
-                else:
-                    pass
             else:
                 buffer += row
 
+    # Did we find a proper header?
+    header = {'layout': 'default'}
+    try:
+        header.update(yaml.safe_load(header_buffer))
+    except (YAMLError, TypeError):
+        markup = header_buffer + buffer
+    else:
         markup = buffer
 
     return header, markup
