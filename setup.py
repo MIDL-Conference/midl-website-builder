@@ -14,6 +14,7 @@ setuptools.setup(
         'jinja2',
         'markdown',
         'pyscss',
-        'pyyaml'
+        'pyyaml',
+        'htmlmin'
     ]
 )

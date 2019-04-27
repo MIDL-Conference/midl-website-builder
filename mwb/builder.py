@@ -1,5 +1,6 @@
 import yaml
 import jinja2
+import htmlmin
 import shutil
 import distutils.dir_util as dirutil
 
@@ -93,6 +94,8 @@ class WebsiteBuilder:
             output_style='compressed',
             namespace=namespace
         )
+
+        self.html_minifier = htmlmin.Minifier(remove_comments=True, remove_empty_space=True)
 
     def print(self, message):
         if self.verbose:
@@ -267,6 +270,10 @@ class WebsiteBuilder:
                     if self.verbose:
                         print('Rendering page layout failed: {}'.format(e.message))
                     continue
+
+                # Clean up HTML
+                html = html.replace('\r\n', '\n').replace('\r', '\n')
+                html = self.html_minifier.minify(html)
 
                 # Write HTML to output directory
                 filename = permalink[1:]
