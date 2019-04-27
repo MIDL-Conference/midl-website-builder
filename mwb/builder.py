@@ -194,7 +194,7 @@ class WebsiteBuilder:
         contents = dict()
 
         content_dir = path.join(self.srcdir, name)
-        content_files = glob(path.join(content_dir, '**/*{}'.format(ext)), recursive=True)
+        content_files = glob(path.join(content_dir, '**/[!_]*{}'.format(ext)), recursive=True)
         for content_file in content_files:
             content_name = path.relpath(content_file, content_dir)[:-len(ext)]
             contents[content_name] = content_file
