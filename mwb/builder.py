@@ -8,7 +8,7 @@ from os import path, makedirs
 from glob import glob
 from collections import OrderedDict
 from numbers import Number
-from markdown import markdown as parse_markdown
+from markdown import Markdown
 from yaml.error import YAMLError
 
 from . import __version__ as mwb_version
@@ -94,8 +94,10 @@ class WebsiteBuilder:
             output_style='compressed',
             namespace=namespace
         )
-
         self.html_minifier = htmlmin.Minifier(remove_comments=True, remove_empty_space=True)
+        self.markdown_parser = Markdown(
+            extensions=['tables', 'attr_list']
+        )
 
     def print(self, message):
         if self.verbose:
@@ -226,7 +228,7 @@ class WebsiteBuilder:
 
                 # Parse markdown
                 if ext == '.md':
-                    html = parse_markdown(markup).strip()
+                    html = self.markdown_parser.convert(markup).strip()
                 else:
                     html = markup.strip()
 
