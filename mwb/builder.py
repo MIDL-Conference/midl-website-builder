@@ -213,80 +213,85 @@ class WebsiteBuilder:
 
         # Different location of the content?
         try:
-            content_name = self.config['content']
+            content_names = self.config['content']
         except KeyError:
-            content_name = 'pages'
+            content_names = 'pages'
+
+        # One (string) or multiple (list) content names are possible
+        if not isinstance(content_names, list):
+            content_names = [content_names]
 
         for ext in ('.md', '.html'):
-            pages = self.find_content(name=content_name, ext=ext)
-            for page_name, page_file in pages.items():
-                if self.verbose:
-                    print(' > compiling {}'.format(path.relpath(page_file, self.srcdir)))
+            for content_name in content_names:
+                pages = self.find_content(name=content_name, ext=ext)
+                for page_name, page_file in pages.items():
+                    if self.verbose:
+                        print(' > compiling {}'.format(path.relpath(page_file, self.srcdir)))
 
-                # Read header and markup from file
-                header, markup = parse_content_file(page_file)
+                    # Read header and markup from file
+                    header, markup = parse_content_file(page_file)
 
-                # Parse markdown
-                if ext == '.md':
-                    html = self.markdown_parser.convert(markup).strip()
-                else:
-                    html = markup.strip()
-
-                # Determine permalink of this page
-                try:
-                    permalink = header['permalink']
-                    if not permalink.startswith('/'):
-                        permalink = '/' + permalink
-                    if not permalink.endswith('.html') and not permalink.endswith('/') and permalink != '/':
-                        permalink += '/'
-                except KeyError:
-                    permalink = '/' + page_name.replace('\\', '/')
-                    if permalink == 'index':
-                        permalink = '/'
-                    elif permalink.endswith('/index'):
-                        permalink = permalink[:-len('index')]
+                    # Parse markdown
+                    if ext == '.md':
+                        html = self.markdown_parser.convert(markup).strip()
                     else:
-                        permalink += '.html'
+                        html = markup.strip()
 
-                if self.verbose:
-                    print('   permalink: {}'.format(permalink))
+                    # Determine permalink of this page
+                    try:
+                        permalink = header['permalink']
+                        if not permalink.startswith('/'):
+                            permalink = '/' + permalink
+                        if not permalink.endswith('.html') and not permalink.endswith('/') and permalink != '/':
+                            permalink += '/'
+                    except KeyError:
+                        permalink = '/' + page_name.replace('\\', '/')
+                        if permalink == 'index':
+                            permalink = '/'
+                        elif permalink.endswith('/index'):
+                            permalink = permalink[:-len('index')]
+                        else:
+                            permalink += '.html'
 
-                # Render content
-                local_vars = global_vars.copy()
-                local_vars.update(header)
-                local_vars['permalink'] = permalink
-
-                try:
-                    tpl_content = jinja2.Template(html)
-                    local_vars['content'] = tpl_content.render(**local_vars)
-                except jinja2.exceptions.TemplateError as e:
                     if self.verbose:
-                        print('Rendering page content failed: {}'.format(e.message))
-                    continue
+                        print('   permalink: {}'.format(permalink))
 
-                # Render layout
-                try:
-                    template = tpl_env.get_template(header['layout'] + '.html')
-                    html = template.render(**local_vars)
-                except jinja2.exceptions.TemplateError as e:
-                    if self.verbose:
-                        print('Rendering page layout failed: {}'.format(e.message))
-                    continue
+                    # Render content
+                    local_vars = global_vars.copy()
+                    local_vars.update(header)
+                    local_vars['permalink'] = permalink
 
-                # Clean up HTML
-                html = html.replace('\r\n', '\n').replace('\r', '\n')
-                html = self.html_minifier.minify(html)
+                    try:
+                        tpl_content = jinja2.Template(html)
+                        local_vars['content'] = tpl_content.render(**local_vars)
+                    except jinja2.exceptions.TemplateError as e:
+                        if self.verbose:
+                            print('Rendering page content failed: {}'.format(e.message))
+                        continue
 
-                # Write HTML to output directory
-                filename = permalink[1:]
-                if filename == '' or filename.endswith('/'):
-                    filename += 'index.html'
+                    # Render layout
+                    try:
+                        template = tpl_env.get_template(header['layout'] + '.html')
+                        html = template.render(**local_vars)
+                    except jinja2.exceptions.TemplateError as e:
+                        if self.verbose:
+                            print('Rendering page layout failed: {}'.format(e.message))
+                        continue
 
-                html_file = path.join(dstdir, filename)
-                if self.verbose and path.exists(html_file):
-                    print('   warning: overwriting existing page with same name!')
+                    # Clean up HTML
+                    html = html.replace('\r\n', '\n').replace('\r', '\n')
+                    html = self.html_minifier.minify(html)
 
-                html_dir = path.dirname(html_file)
-                makedirs(html_dir, exist_ok=True)
-                with open(html_file, 'w', encoding='utf-8') as file_stream:
-                    file_stream.write(html)
+                    # Write HTML to output directory
+                    filename = permalink[1:]
+                    if filename == '' or filename.endswith('/'):
+                        filename += 'index.html'
+
+                    html_file = path.join(dstdir, filename)
+                    if self.verbose and path.exists(html_file):
+                        print('   warning: overwriting existing page with same name!')
+
+                    html_dir = path.dirname(html_file)
+                    makedirs(html_dir, exist_ok=True)
+                    with open(html_file, 'w', encoding='utf-8') as file_stream:
+                        file_stream.write(html)
