@@ -8,10 +8,10 @@ from os import path, makedirs
 from glob import glob
 from collections import OrderedDict
 from numbers import Number
-from markdown import Markdown
 from yaml.error import YAMLError
 
 from . import __version__ as mwb_version
+from .markdown import Markdown, DivWrapExtension
 
 
 # Suppress future warning when importing the scss package
@@ -96,7 +96,7 @@ class WebsiteBuilder:
         )
         self.html_minifier = htmlmin.Minifier(remove_comments=True, remove_empty_space=True)
         self.markdown_parser = Markdown(
-            extensions=['tables', 'attr_list']
+            extensions=['tables', 'attr_list', DivWrapExtension()]
         )
 
     def print(self, message):
