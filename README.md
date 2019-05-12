@@ -126,3 +126,9 @@ Themes are ideally (like the default theme) git submodules, i.e., standalone git
 This enables using the same theme across multiple websites. When the MIDL standard theme is
 changed, all websites using that theme only need to pull the new version of the submodule to
 refresh their layout and styling. 
+
+Just like the actual website, themes can contain:
+
+* Static files in the folder `static/`
+* Layouts in the folder `layouts/`
+* Stylesheets in the folder `stylesheets/`
