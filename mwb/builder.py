@@ -146,8 +146,13 @@ class WebsiteBuilder:
             theme_name = 'midl-website-theme'
         return path.join(self.srcdir, 'themes', theme_name)
 
-    def asset_dirs(self, name):
-        for asset_source in (self.theme, self.srcdir):
+    def asset_dirs(self, name, theme_assets_first=False):
+        if theme_assets_first:
+            asset_sources = (self.theme, self.srcdir)
+        else:
+            asset_sources = (self.srcdir, self.theme)
+
+        for asset_source in asset_sources:
             asset_dir = path.join(asset_source, name)
             if path.exists(asset_dir):
                 yield asset_dir
@@ -156,7 +161,7 @@ class WebsiteBuilder:
         """Searches for files in subfolders with the specified name in both theme and local files"""
         assets = OrderedDict()
 
-        for asset_dir in self.asset_dirs(name):
+        for asset_dir in self.asset_dirs(name, theme_assets_first=True):
             asset_files = glob(path.join(asset_dir, '[!_]*{}'.format(ext)))
             for asset_file in asset_files:
                 asset_name = path.basename(asset_file)
