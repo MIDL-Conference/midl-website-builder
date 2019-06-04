@@ -261,7 +261,7 @@ class WebsiteBuilder:
                     local_vars['permalink'] = permalink
 
                     try:
-                        tpl_content = jinja2.Template(markup.strip())
+                        tpl_content = tpl_env.from_string(markup.strip())
                         markup = tpl_content.render(**local_vars)
                     except jinja2.exceptions.TemplateError as e:
                         if self.verbose:
