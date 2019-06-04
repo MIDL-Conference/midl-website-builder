@@ -236,12 +236,6 @@ class WebsiteBuilder:
                     # Read header and markup from file
                     header, markup = parse_content_file(page_file)
 
-                    # Parse markdown
-                    if ext == '.md':
-                        html = self.markdown_parser.convert(markup).strip()
-                    else:
-                        html = markup.strip()
-
                     # Determine permalink of this page
                     try:
                         permalink = header['permalink']
@@ -267,12 +261,18 @@ class WebsiteBuilder:
                     local_vars['permalink'] = permalink
 
                     try:
-                        tpl_content = jinja2.Template(html)
-                        local_vars['content'] = tpl_content.render(**local_vars)
+                        tpl_content = jinja2.Template(markup.strip())
+                        markup = tpl_content.render(**local_vars)
                     except jinja2.exceptions.TemplateError as e:
                         if self.verbose:
                             print('Rendering page content failed: {}'.format(e.message))
                         continue
+
+                    if ext == '.md':
+                        # Parse markdown
+                        markup = self.markdown_parser.convert(markup).strip()
+
+                    local_vars['content'] = markup
 
                     # Render layout
                     try:
