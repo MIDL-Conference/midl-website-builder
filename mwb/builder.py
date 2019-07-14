@@ -35,7 +35,11 @@ def parse_content_file(filename):
 
             if header_delimiter and mode != 'markup':
                 if mode == '?':
-                    mode = 'header'
+                    if len(buffer) > 0:
+                        mode = 'markup'
+                        buffer += row
+                    else:
+                        mode = 'header'
                 elif mode == 'header':
                     header_buffer = buffer
                     buffer = ''
