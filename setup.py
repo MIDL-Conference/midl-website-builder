@@ -15,6 +15,7 @@ setuptools.setup(
         'markdown',
         'pyscss',
         'pyyaml',
-        'htmlmin'
+        'htmlmin',
+        'bs4',
     ]
 )
