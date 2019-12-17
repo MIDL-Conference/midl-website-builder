@@ -7,7 +7,6 @@ import distutils.dir_util as dirutil
 from os import path, makedirs
 from glob import glob
 from collections import OrderedDict
-from typing import Callable, Optional
 from numbers import Number
 from yaml.error import YAMLError
 from bs4 import BeautifulSoup
@@ -23,10 +22,6 @@ with warnings.catch_warnings():
     import scss
     import scss.namespace
     import scss.types
-
-
-def id_(x):
-    return x
 
 
 def parse_content_file(filename):
@@ -105,20 +100,17 @@ class WebsiteBuilder:
             namespace=namespace
         )
 
-        self.minify_fn: Callable
-        self.html_minifier: Optional[htmlmin.Minifier]
         if minify:
             self.html_minifier = htmlmin.Minifier(remove_comments=True, remove_empty_space=True)
-            self.minify_fn = self.html_minifier.minify
+            self.minify = self.html_minifier.minify
         else:
-            self.minify_fn = id_
             self.html_minifier = None
+            self.minify = lambda s: s
 
-        self.prettify_fn: Callable
         if prettify:
-            self.prettify_fn = lambda s: BeautifulSoup(s, 'html.parser').prettify()
+            self.prettify = lambda s: BeautifulSoup(s, 'html.parser').prettify()
         else:
-            self.prettify_fn = id_
+            self.prettify = lambda s: s
 
         self.markdown_parser = Markdown(
             extensions=['tables', 'attr_list', DivWrapExtension()]
@@ -310,8 +302,8 @@ class WebsiteBuilder:
 
                     # Clean up HTML
                     html = html.replace('\r\n', '\n').replace('\r', '\n')
-                    html = self.minify_fn(html)
-                    html = self.prettify_fn(html)
+                    html = self.minify(html)
+                    html = self.prettify(html)
 
                     # Write HTML to output directory
                     filename = permalink[1:]
