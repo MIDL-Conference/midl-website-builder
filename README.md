@@ -1,9 +1,9 @@
 # MIDL website builder (mwb)
 
-The `mwb` package builds static HTML websites from source files written in MarkDown or HTML
-and a theme package. For the MIDL conference series, this setup ensures that websites can be
-efficiently hosted and served. The use of a theme ensures that the websites of the
-individual editions of the conference share the same look and feel.
+The `mwb` package builds static HTML websites from content written in MarkDown or HTML format, combined
+with a theme package that defines the layout and styling. For the MIDL conference series, this setup
+ensures that websites can be efficiently hosted and served. The use of a theme ensures that the websites
+of the individual editions of the conference share the same look and feel.
 
 Each years edition will have a website maintained mostly by the conference organizers. To make
 editing and deploying the website as simple as possible, many components that are usually very
@@ -11,7 +11,7 @@ much configurable in static website generators are fixed and the repository stru
 
 ## Installation
 
-Preferrably using pipenv:
+Using pipenv:
 
 ```
 cd midl-website-2018/
@@ -40,9 +40,9 @@ intended for debugging purposes and not for a production environment.
 ### Main configuration (`website.yaml`)
 
 Every website is required to have a configuration file named `/website.yaml` at the root of the
-project folder. This configures the builder, the theme and all values from this file are also
-available in both content files as well as theme layout files in the variable `config` (so for
-example `{{ config.theme }}` in a content file would print out the name of the active theme.
+project folder. This configures the builder and the theme. All values from this file are also
+available in content files as well as theme layout files in the variable `config` (for example,
+`{{ config.theme }}` in a content file would print out the name of the active theme).
 
 ### Content
 
@@ -54,14 +54,16 @@ content: ["pages", "more_pages"]
 ```
 
 results in all md/html files first from the directory `/pages` and then from `/more_pages` being
-parsed, combined with a layout and written to the output folder as html files. Files are processed
+parsed, combined with the layout and written to the output folder as html files. Files are processed
 recursively, so the file `/pages/sub/hello.md` is converted into the file `/output/sub/hello.html`.
-When multipe directories are specified, pages with the same name overwrite pages from a previous
-directory. In the example above, if there was a page `index.md` in both `/pages` and `/more_pages`,
+When multipe directories are specified, pages with the same name overwrite pages from previous
+directories. In the example above, if there was a page `index.md` in both `/pages` and `/more_pages`,
 only the latter would end up in the output directory.
 
-In the default template, the content is in `/pages` and alternative conent (a temporary placeholder
-website which is used while the actual content is being prepared) is in `/placeholder`.
+In the default template, the content is in `/pages` and alternative content (a temporary placeholder
+website which is used while the actual content is being prepared) is in `/placeholder`. By default,
+the placeholder is rendered. Changing the configuration in `/website.yaml` into `content: "pages"`
+deactivates the placeholder website.
 
 Each content file can optionally contain a header in YAML format. This header is separated from the
 actual content by three dashes, for example:
@@ -81,13 +83,13 @@ variable `{{ title }}`.
 
 All files and folders in `/static` are recursively copied to the output directory. Images, documents,
 etc. should therefore be stored in this folder. These files will be copied after files from the theme
-have been copied (from the theme's `static` directory), so that theme files (such as the favicon) can
+have been copied (from the theme's `static` directory), so that theme files like the logo or favicon can
 be replaced.
 
 ### Layouts
 
-Layouts are HTML files that define the structure of the website. Each content file (see above) defines
-the content of a page and is combined with a layout file to generate a proper HTML output file.
+Layouts are HTML files that define the structure of the website. In a typical setup, these are part of
+theme and do not require further configuration, the default layout will work for most pages.
 
 A very basic layout file would be:
 
@@ -103,14 +105,14 @@ A very basic layout file would be:
 </html>
 ```
 
-Layouts are part of themes as HTML files in the subdirectory `layouts`, but their can also be website
+Layouts are part of themes in the theme's subdirectory `layouts`, but there can also be website
 specific layouts in `/layouts`.
 
 ### Stylesheets
 
 In most cases, there will be no need for stylesheet files other than those from the theme. SASS (`.scss`)
-files in `/themes/{theme-name}/stylesheets` and then `/stylesheets` are automatically compiled (unless
-their filename begins with an underscore). The resulting CSS files are written to `assets/css` in the
+files in `/themes/{theme-name}/stylesheets` and then `/stylesheets` are automatically compiled into CSS,
+unless their filename begins with an underscore. The resulting CSS files are written to `assets/css` in the
 output directory.
 
 In content and layout files, the absolute path to all compiled CSS files is available in the variable
