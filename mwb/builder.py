@@ -4,6 +4,7 @@ import htmlmin
 import shutil
 import distutils.dir_util as dirutil
 
+from time import time
 from functools import partial
 from multiprocessing import Pool
 from typing import Callable, Dict, List, Tuple
@@ -92,9 +93,10 @@ def _prettify(s):
 
 
 class WebsiteBuilder:
-    def __init__(self, srcdir, verbose=False, minify=True, prettify=False):
+    def __init__(self, srcdir, verbose=False, silent=False, minify=True, prettify=False):
         self.srcdir = srcdir
         self.verbose = verbose
+        self.silent = silent
 
         self.config = self.read_global_configuration()
 
@@ -128,12 +130,12 @@ class WebsiteBuilder:
         )
 
     def print(self, message):
-        if self.verbose:
+        if not self.silent:
             print(message)
 
     def build(self, dstdir):
         # Clear output directory
-        self.print('Preparing output directory')
+        self.print(f'Preparing output directory {dstdir}')
         if path.exists(dstdir):
             shutil.rmtree(dstdir)
         makedirs(dstdir, exist_ok=True)
@@ -209,8 +211,7 @@ class WebsiteBuilder:
         stylesheets = self.find_assets(name='stylesheets', ext='.scss')
         compiled = dict()
         for name, scss_file in stylesheets.items():
-            if self.verbose:
-                print(' > compiling {}'.format(path.relpath(scss_file, self.srcdir)))
+            self.print('\t> compiling {}'.format(path.relpath(scss_file, self.srcdir)))
 
             # Compile from SCSS to CSS
             css = self.scss_compiler.compile(scss_file)
@@ -266,6 +267,7 @@ class WebsiteBuilder:
                                       dstdir=dstdir,
                                       tpl_env=tpl_env,
                                       verbose=self.verbose,
+                                      silent=self.silent,
                                       srcdir=self.srcdir,
                                       markdown_parser=None,
                                       minify=self.minify,
@@ -273,13 +275,18 @@ class WebsiteBuilder:
 
         params: List[Tuple[str, ...]] = [(k, *v) for (k, v) in pages.items()]
 
+        t0 = time()
         # for param in params:
         #     prefilled(*param)
         Pool().starmap(prefilled, params)
+        t1 = time()
+        delta = t1 - t0
+
+        self.print(f"\t> Compiled {len(params)} pages in {delta} seconds")
 
 
 def build_page(page_name, page_file, ext, *, global_vars, dstdir, tpl_env,
-               verbose, srcdir, markdown_parser, minify, prettify) -> str:
+               verbose, silent, srcdir, markdown_parser, minify, prettify) -> str:
     log: str = ""
 
     if markdown_parser is None:
@@ -287,8 +294,7 @@ def build_page(page_name, page_file, ext, *, global_vars, dstdir, tpl_env,
             extensions=['tables', 'attr_list', DivWrapExtension()]
         )
 
-    if verbose:
-            log += ' > compiling {}\n'.format(path.relpath(page_file, srcdir))
+    log += '\t> compiling {}\n'.format(path.relpath(page_file, srcdir))
 
     # Read header and markup from file
     header, markup = parse_content_file(page_file)
@@ -309,8 +315,7 @@ def build_page(page_name, page_file, ext, *, global_vars, dstdir, tpl_env,
         else:
             permalink += '.html'
 
-    if verbose:
-        log += '   permalink: {}'.format(permalink)
+    log += '   permalink: {}'.format(permalink)
 
     # Render content
     local_vars = global_vars.copy()
@@ -321,9 +326,10 @@ def build_page(page_name, page_file, ext, *, global_vars, dstdir, tpl_env,
         tpl_content = tpl_env.from_string(markup.strip())
         markup = tpl_content.render(**local_vars)
     except jinja2.exceptions.TemplateError as e:
-        if verbose:
-            log += 'Rendering page content failed: {}\n'.format(e.message)
+        log += 'Rendering page content failed: {}\n'.format(e.message)
+        if not silent:
             print(log)
+
         return log
 
     if ext == '.md':
@@ -337,9 +343,10 @@ def build_page(page_name, page_file, ext, *, global_vars, dstdir, tpl_env,
         template = tpl_env.get_template(header['layout'] + '.html')
         html = template.render(**local_vars)
     except jinja2.exceptions.TemplateError as e:
-        if verbose:
-            log += 'Rendering page layout failed: {}\n'.format(e.message)
+        log += 'Rendering page layout failed: {}\n'.format(e.message)
+        if not silent:
             print(log)
+
         return log
 
     # Clean up HTML
@@ -361,6 +368,7 @@ def build_page(page_name, page_file, ext, *, global_vars, dstdir, tpl_env,
     with open(html_file, 'w', encoding='utf-8') as file_stream:
         file_stream.write(html)
 
-    print(log)
+    if verbose:
+        print(log)
 
     return log
