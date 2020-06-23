@@ -4,6 +4,9 @@ import htmlmin
 import shutil
 import distutils.dir_util as dirutil
 
+from functools import partial
+from multiprocessing import Pool
+from typing import Callable, Dict, List, Tuple
 from os import path, makedirs
 from glob import glob
 from collections import OrderedDict
@@ -80,6 +83,14 @@ class WebsiteBuildError(Exception):
     pass
 
 
+def _id(a):
+    return a
+
+
+def _prettify(s):
+    return BeautifulSoup(s, 'html.parser').prettify()
+
+
 class WebsiteBuilder:
     def __init__(self, srcdir, verbose=False, minify=True, prettify=False):
         self.srcdir = srcdir
@@ -105,12 +116,12 @@ class WebsiteBuilder:
             self.minify = self.html_minifier.minify
         else:
             self.html_minifier = None
-            self.minify = lambda s: s
+            self.minify = _id
 
         if prettify:
-            self.prettify = lambda s: BeautifulSoup(s, 'html.parser').prettify()
+            self.prettify = _prettify
         else:
-            self.prettify = lambda s: s
+            self.prettify = _id
 
         self.markdown_parser = Markdown(
             extensions=['tables', 'attr_list', DivWrapExtension()]
@@ -216,15 +227,15 @@ class WebsiteBuilder:
 
         return compiled
 
-    def find_content(self, name, ext):
+    def find_content(self, name, ext) -> Dict[str, Tuple[str, str]]:
         """Searches for md and html files in the specified subfolder"""
-        contents = dict()
+        contents: Dict[str, Tuple[str, str]] = dict()
 
         content_dir = path.join(self.srcdir, name)
         content_files = glob(path.join(content_dir, '**/[!_]*{}'.format(ext)), recursive=True)
         for content_file in content_files:
             content_name = path.relpath(content_file, content_dir)[:-len(ext)]
-            contents[content_name] = content_file
+            contents[content_name] = (content_file, ext)
 
         return contents
 
@@ -243,78 +254,113 @@ class WebsiteBuilder:
         if not isinstance(content_names, list):
             content_names = [content_names]
 
+        pages: Dict[str, Tuple[str, str]] = {}
         for ext in ('.md', '.html'):
             for content_name in content_names:
-                pages = self.find_content(name=content_name, ext=ext)
-                for page_name, page_file in pages.items():
-                    if self.verbose:
-                        print(' > compiling {}'.format(path.relpath(page_file, self.srcdir)))
+                pages = {**pages, **self.find_content(name=content_name, ext=ext)}
+        del content_name
+        del ext
 
-                    # Read header and markup from file
-                    header, markup = parse_content_file(page_file)
+        prefilled: Callable = partial(build_page,
+                                      global_vars=global_vars,
+                                      dstdir=dstdir,
+                                      tpl_env=tpl_env,
+                                      verbose=self.verbose,
+                                      srcdir=self.srcdir,
+                                      markdown_parser=None,
+                                      minify=self.minify,
+                                      prettify=self.prettify)
 
-                    # Determine permalink of this page
-                    try:
-                        permalink = header['permalink']
-                        if not permalink.startswith('/'):
-                            permalink = '/' + permalink
-                        if not permalink.endswith('.html') and not permalink.endswith('/') and permalink != '/':
-                            permalink += '/'
-                    except KeyError:
-                        permalink = '/' + page_name.replace('\\', '/')
-                        if permalink == 'index':
-                            permalink = '/'
-                        elif permalink.endswith('/index'):
-                            permalink = permalink[:-len('index')]
-                        else:
-                            permalink += '.html'
+        params: List[Tuple[str, ...]] = [(k, *v) for (k, v) in pages.items()]
 
-                    if self.verbose:
-                        print('   permalink: {}'.format(permalink))
+        # for param in params:
+        #     prefilled(*param)
+        Pool().starmap(prefilled, params)
 
-                    # Render content
-                    local_vars = global_vars.copy()
-                    local_vars.update(header)
-                    local_vars['permalink'] = permalink
 
-                    try:
-                        tpl_content = tpl_env.from_string(markup.strip())
-                        markup = tpl_content.render(**local_vars)
-                    except jinja2.exceptions.TemplateError as e:
-                        if self.verbose:
-                            print('Rendering page content failed: {}'.format(e.message))
-                        continue
+def build_page(page_name, page_file, ext, *, global_vars, dstdir, tpl_env,
+               verbose, srcdir, markdown_parser, minify, prettify) -> str:
+    log: str = ""
 
-                    if ext == '.md':
-                        # Parse markdown
-                        markup = self.markdown_parser.convert(markup).strip()
+    if markdown_parser is None:
+        markdown_parser = Markdown(
+            extensions=['tables', 'attr_list', DivWrapExtension()]
+        )
 
-                    local_vars['content'] = markup
+    if verbose:
+            log += ' > compiling {}\n'.format(path.relpath(page_file, srcdir))
 
-                    # Render layout
-                    try:
-                        template = tpl_env.get_template(header['layout'] + '.html')
-                        html = template.render(**local_vars)
-                    except jinja2.exceptions.TemplateError as e:
-                        if self.verbose:
-                            print('Rendering page layout failed: {}'.format(e.message))
-                        continue
+    # Read header and markup from file
+    header, markup = parse_content_file(page_file)
 
-                    # Clean up HTML
-                    html = html.replace('\r\n', '\n').replace('\r', '\n')
-                    html = self.minify(html)
-                    html = self.prettify(html)
+    # Determine permalink of this page
+    try:
+        permalink = header['permalink']
+        if not permalink.startswith('/'):
+            permalink = '/' + permalink
+        if not permalink.endswith('.html') and not permalink.endswith('/') and permalink != '/':
+            permalink += '/'
+    except KeyError:
+        permalink = '/' + page_name.replace('\\', '/')
+        if permalink == 'index':
+            permalink = '/'
+        elif permalink.endswith('/index'):
+            permalink = permalink[:-len('index')]
+        else:
+            permalink += '.html'
 
-                    # Write HTML to output directory
-                    filename = permalink[1:]
-                    if filename == '' or filename.endswith('/'):
-                        filename += 'index.html'
+    if verbose:
+        log += '   permalink: {}'.format(permalink)
 
-                    html_file = path.join(dstdir, filename)
-                    if self.verbose and path.exists(html_file):
-                        print('   warning: overwriting existing page with same name!')
+    # Render content
+    local_vars = global_vars.copy()
+    local_vars.update(header)
+    local_vars['permalink'] = permalink
 
-                    html_dir = path.dirname(html_file)
-                    makedirs(html_dir, exist_ok=True)
-                    with open(html_file, 'w', encoding='utf-8') as file_stream:
-                        file_stream.write(html)
+    try:
+        tpl_content = tpl_env.from_string(markup.strip())
+        markup = tpl_content.render(**local_vars)
+    except jinja2.exceptions.TemplateError as e:
+        if verbose:
+            log += 'Rendering page content failed: {}\n'.format(e.message)
+            print(log)
+        return log
+
+    if ext == '.md':
+        # Parse markdown
+        markup = markdown_parser.convert(markup).strip()
+
+    local_vars['content'] = markup
+
+    # Render layout
+    try:
+        template = tpl_env.get_template(header['layout'] + '.html')
+        html = template.render(**local_vars)
+    except jinja2.exceptions.TemplateError as e:
+        if verbose:
+            log += 'Rendering page layout failed: {}\n'.format(e.message)
+            print(log)
+        return log
+
+    # Clean up HTML
+    html = html.replace('\r\n', '\n').replace('\r', '\n')
+    html = minify(html)
+    html = prettify(html)
+
+    # Write HTML to output directory
+    filename = permalink[1:]
+    if filename == '' or filename.endswith('/'):
+        filename += 'index.html'
+
+    html_file = path.join(dstdir, filename)
+    if verbose and path.exists(html_file):
+        log += '   warning: overwriting existing page with same name!\n'
+
+    html_dir = path.dirname(html_file)
+    makedirs(html_dir, exist_ok=True)
+    with open(html_file, 'w', encoding='utf-8') as file_stream:
+        file_stream.write(html)
+
+    print(log)
+
+    return log
