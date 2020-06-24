@@ -5,7 +5,7 @@ import shutil
 import distutils.dir_util as dirutil
 import functools
 
-from multiprocessing import Pool, Lock
+from multiprocessing import Pool
 from os import path, makedirs
 from glob import glob
 from collections import OrderedDict
@@ -24,10 +24,6 @@ with warnings.catch_warnings():
     import scss
     import scss.namespace
     import scss.types
-
-
-# Lock for stdout to ensure that output is not messed up due to multiple processes printing
-stdout_lock = Lock()
 
 
 def parse_content_file(filename):
@@ -120,8 +116,7 @@ class WebsiteBuilder:
 
     def print(self, message):
         if not self.silent:
-            with stdout_lock:
-                print(message, flush=True)
+            print(message, flush=True)
 
     def build(self, dstdir):
         # Clear output directory

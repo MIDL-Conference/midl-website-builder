@@ -18,5 +18,5 @@ setuptools.setup(
         'htmlmin',
         'bs4',
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.7',
 )
