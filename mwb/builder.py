@@ -242,7 +242,8 @@ class WebsiteBuilder:
                 pages.update(self.find_content(name=content_name, ext=ext))
 
         # Run build_page() for each individual page
-        status_reports = Pool().starmap(
+        pool = Pool()
+        status_reports = pool.starmap(
             functools.partial(
                 render_page,
                 builder=self,
@@ -251,6 +252,8 @@ class WebsiteBuilder:
             ),
             [(k, *v) for (k, v) in pages.items()]
         )
+        pool.close()
+        pool.join()
 
         n_errors = sum(1 for success in status_reports if not success)
         self.print(f'\t> compiled {len(pages)} pages ({n_errors} errors)')
