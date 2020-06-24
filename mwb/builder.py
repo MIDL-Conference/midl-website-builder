@@ -241,15 +241,10 @@ class WebsiteBuilder:
             for content_name in content_names:
                 pages.update(self.find_content(name=content_name, ext=ext))
 
-        # Run build_page() for each individual page
+        # Render all individual page in parallel
         pool = Pool()
         status_reports = pool.starmap(
-            functools.partial(
-                render_page,
-                builder=self,
-                global_vars=global_vars,
-                dstdir=dstdir
-            ),
+            functools.partial(render_page, builder=self, dstdir=dstdir, global_vars=global_vars),
             [(k, *v) for (k, v) in pages.items()]
         )
         pool.close()
@@ -271,7 +266,7 @@ class WebsiteBuilder:
             return self.html_prettifier(html)
 
 
-def render_page(page_name, page_file, ext, *, builder: WebsiteBuilder, global_vars, dstdir):
+def render_page(page_name, page_file, ext, *, builder: WebsiteBuilder, dstdir, global_vars):
     """Renders a single page"""
     rel_page_path = path.relpath(page_file, builder.srcdir)
     log = [f'\t> compiling {rel_page_path}']
