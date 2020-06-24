@@ -29,7 +29,7 @@ pipenv run python -m mwb . output/
 ```
 
 By default, the builder displays information about the build process. This can be disable with
- the `--silent` switch.
+ the `--silent` switch, or the `--verbose` switch can be used to activate more detailed output.
 
 The builder produces minified HTML. This can be turned off with the `--no-minify` switch. The
 produced HTML can optinally also be prettified with the `--prettify` switch. These are mainly

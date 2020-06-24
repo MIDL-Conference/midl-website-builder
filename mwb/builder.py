@@ -3,11 +3,9 @@ import jinja2
 import htmlmin
 import shutil
 import distutils.dir_util as dirutil
+import functools
 
-from time import time
-from functools import partial
-from multiprocessing import Pool
-from typing import Callable, Dict, List, Tuple
+from multiprocessing import Pool, Lock
 from os import path, makedirs
 from glob import glob
 from collections import OrderedDict
@@ -26,6 +24,10 @@ with warnings.catch_warnings():
     import scss
     import scss.namespace
     import scss.types
+
+
+# Lock for stdout to ensure that output is not messed up due to multiple processes printing
+stdout_lock = Lock()
 
 
 def parse_content_file(filename):
@@ -80,21 +82,17 @@ def convert_to_scss_variable(var):
         return scss.types.Null()
 
 
-class WebsiteBuildError(Exception):
-    pass
-
-
-def _id(a):
-    return a
-
-
-def _prettify(s):
-    return BeautifulSoup(s, 'html.parser').prettify()
+class Prettifier:
+    def __call__(self, s):
+        return BeautifulSoup(s, 'html.parser').prettify()
 
 
 class WebsiteBuilder:
     def __init__(self, srcdir, verbose=False, silent=False, minify=True, prettify=False):
         self.srcdir = srcdir
+
+        if verbose and silent:
+            raise ValueError('Parameters "verbose" and "silent" are mutually exclusive options')
         self.verbose = verbose
         self.silent = silent
 
@@ -104,7 +102,7 @@ class WebsiteBuilder:
         namespace = scss.namespace.Namespace()
         for name, value in self.config.items():
             converted_value = convert_to_scss_variable(value)
-            namespace.set_variable('${}'.format(name), converted_value)
+            namespace.set_variable(f'${name}', converted_value)
 
         self.scss_compiler = scss.compiler.Compiler(
             search_path=list(self.asset_dirs('stylesheets')),
@@ -113,25 +111,17 @@ class WebsiteBuilder:
             namespace=namespace
         )
 
-        if minify:
-            self.html_minifier = htmlmin.Minifier(remove_comments=True, remove_empty_space=True)
-            self.minify = self.html_minifier.minify
-        else:
-            self.html_minifier = None
-            self.minify = _id
+        self.html_minifier = htmlmin.Minifier(remove_comments=True, remove_empty_space=True) if minify else None
+        self.html_prettifier = Prettifier() if prettify else None
 
-        if prettify:
-            self.prettify = _prettify
-        else:
-            self.prettify = _id
-
-        self.markdown_parser = Markdown(
-            extensions=['tables', 'attr_list', DivWrapExtension()]
-        )
+    @property
+    def markdown_parser(self):
+        return Markdown(extensions=['tables', 'attr_list', DivWrapExtension()])
 
     def print(self, message):
         if not self.silent:
-            print(message)
+            with stdout_lock:
+                print(message, flush=True)
 
     def build(self, dstdir):
         # Clear output directory
@@ -192,7 +182,7 @@ class WebsiteBuilder:
         assets = OrderedDict()
 
         for asset_dir in self.asset_dirs(name, theme_assets_first=True):
-            asset_files = glob(path.join(asset_dir, '[!_]*{}'.format(ext)))
+            asset_files = glob(path.join(asset_dir, f'[!_]*{ext}'))
             for asset_file in asset_files:
                 asset_name = path.basename(asset_file)
                 if not keep_ext:
@@ -211,11 +201,11 @@ class WebsiteBuilder:
         stylesheets = self.find_assets(name='stylesheets', ext='.scss')
         compiled = dict()
         for name, scss_file in stylesheets.items():
-            self.print('\t> compiling {}'.format(path.relpath(scss_file, self.srcdir)))
+            self.print(f'\t> compiling {path.relpath(scss_file, self.srcdir)}')
 
             # Compile from SCSS to CSS
             css = self.scss_compiler.compile(scss_file)
-            css_file = path.join(css_dir, '{}.css'.format(name))
+            css_file = path.join(css_dir, f'{name}.css')
 
             # Write to output directory
             with open(css_file, 'w', encoding='utf-8') as file_stream:
@@ -228,12 +218,12 @@ class WebsiteBuilder:
 
         return compiled
 
-    def find_content(self, name, ext) -> Dict[str, Tuple[str, str]]:
+    def find_content(self, name, ext):
         """Searches for md and html files in the specified subfolder"""
-        contents: Dict[str, Tuple[str, str]] = dict()
+        contents = dict()
 
         content_dir = path.join(self.srcdir, name)
-        content_files = glob(path.join(content_dir, '**/[!_]*{}'.format(ext)), recursive=True)
+        content_files = glob(path.join(content_dir, f'**/[!_]*{ext}'), recursive=True)
         for content_file in content_files:
             content_name = path.relpath(content_file, content_dir)[:-len(ext)]
             contents[content_name] = (content_file, ext)
@@ -241,10 +231,6 @@ class WebsiteBuilder:
         return contents
 
     def compile_content(self, dstdir, global_vars):
-        # Prepare template parsing engine
-        tpl_loader = jinja2.FileSystemLoader(list(self.asset_dirs('layouts')))
-        tpl_env = jinja2.Environment(loader=tpl_loader)
-
         # Different location of the content?
         try:
             content_names = self.config['content']
@@ -255,120 +241,120 @@ class WebsiteBuilder:
         if not isinstance(content_names, list):
             content_names = [content_names]
 
-        pages: Dict[str, Tuple[str, str]] = {}
+        pages = {}
         for ext in ('.md', '.html'):
             for content_name in content_names:
-                pages = {**pages, **self.find_content(name=content_name, ext=ext)}
-        del content_name
-        del ext
+                pages.update(self.find_content(name=content_name, ext=ext))
 
-        prefilled: Callable = partial(build_page,
-                                      global_vars=global_vars,
-                                      dstdir=dstdir,
-                                      tpl_env=tpl_env,
-                                      verbose=self.verbose,
-                                      silent=self.silent,
-                                      srcdir=self.srcdir,
-                                      markdown_parser=None,
-                                      minify=self.minify,
-                                      prettify=self.prettify)
-
-        params: List[Tuple[str, ...]] = [(k, *v) for (k, v) in pages.items()]
-
-        t0 = time()
-        # for param in params:
-        #     prefilled(*param)
-        Pool().starmap(prefilled, params)
-        t1 = time()
-        delta = t1 - t0
-
-        self.print(f"\t> Compiled {len(params)} pages in {delta} seconds")
-
-
-def build_page(page_name, page_file, ext, *, global_vars, dstdir, tpl_env,
-               verbose, silent, srcdir, markdown_parser, minify, prettify) -> str:
-    log: str = ""
-
-    if markdown_parser is None:
-        markdown_parser = Markdown(
-            extensions=['tables', 'attr_list', DivWrapExtension()]
+        # Run build_page() for each individual page
+        status_reports = Pool().starmap(
+            functools.partial(
+                render_page,
+                builder=self,
+                global_vars=global_vars,
+                dstdir=dstdir
+            ),
+            [(k, *v) for (k, v) in pages.items()]
         )
 
-    log += '\t> compiling {}\n'.format(path.relpath(page_file, srcdir))
+        n_errors = sum(1 for success in status_reports if not success)
+        self.print(f'\t> compiled {len(pages)} pages ({n_errors} errors)')
 
-    # Read header and markup from file
-    header, markup = parse_content_file(page_file)
-
-    # Determine permalink of this page
-    try:
-        permalink = header['permalink']
-        if not permalink.startswith('/'):
-            permalink = '/' + permalink
-        if not permalink.endswith('.html') and not permalink.endswith('/') and permalink != '/':
-            permalink += '/'
-    except KeyError:
-        permalink = '/' + page_name.replace('\\', '/')
-        if permalink == 'index':
-            permalink = '/'
-        elif permalink.endswith('/index'):
-            permalink = permalink[:-len('index')]
+    def minify(self, html):
+        if self.html_minifier is None:
+            return html
         else:
-            permalink += '.html'
+            return self.html_minifier.minify(html)
 
-    log += '   permalink: {}'.format(permalink)
+    def prettify(self, html):
+        if self.html_prettifier is None:
+            return html
+        else:
+            return self.html_prettifier(html)
 
-    # Render content
-    local_vars = global_vars.copy()
-    local_vars.update(header)
-    local_vars['permalink'] = permalink
+
+def render_page(page_name, page_file, ext, *, builder: WebsiteBuilder, global_vars, dstdir):
+    """Renders a single page"""
+    rel_page_path = path.relpath(page_file, builder.srcdir)
+    log = [f'\t> compiling {rel_page_path}']
 
     try:
-        tpl_content = tpl_env.from_string(markup.strip())
-        markup = tpl_content.render(**local_vars)
-    except jinja2.exceptions.TemplateError as e:
-        log += 'Rendering page content failed: {}\n'.format(e.message)
-        if not silent:
-            print(log)
+        # Read header and markup from file
+        header, markup = parse_content_file(page_file)
 
-        return log
+        # Determine permalink of this page
+        try:
+            permalink = header['permalink']
+            if not permalink.startswith('/'):
+                permalink = '/' + permalink
+            if not permalink.endswith('.html') and not permalink.endswith('/') and permalink != '/':
+                permalink += '/'
+        except KeyError:
+            permalink = '/' + page_name.replace('\\', '/')
+            if permalink == 'index':
+                permalink = '/'
+            elif permalink.endswith('/index'):
+                permalink = permalink[:-len('index')]
+            else:
+                permalink += '.html'
 
-    if ext == '.md':
-        # Parse markdown
-        markup = markdown_parser.convert(markup).strip()
+        log.append(f'\t  permalink: {permalink}')
 
-    local_vars['content'] = markup
+        # Render content
+        tpl_loader = jinja2.FileSystemLoader(list(builder.asset_dirs('layouts')))
+        tpl_env = jinja2.Environment(loader=tpl_loader)
 
-    # Render layout
-    try:
-        template = tpl_env.get_template(header['layout'] + '.html')
-        html = template.render(**local_vars)
-    except jinja2.exceptions.TemplateError as e:
-        log += 'Rendering page layout failed: {}\n'.format(e.message)
-        if not silent:
-            print(log)
+        local_vars = global_vars.copy()
+        local_vars.update(header)
+        local_vars['permalink'] = permalink
 
-        return log
+        try:
+            tpl_content = tpl_env.from_string(markup.strip())
+            markup = tpl_content.render(**local_vars)
+        except jinja2.exceptions.TemplateError as e:
+            if builder.verbose:
+                log.append(f'\t  rendering page content failed: {e.message}')
+            else:
+                builder.print(f'\t>  rendering page content failed for {rel_page_path}: {e.message}')
+            return False
 
-    # Clean up HTML
-    html = html.replace('\r\n', '\n').replace('\r', '\n')
-    html = minify(html)
-    html = prettify(html)
+        if ext == '.md':
+            # Parse markdown
+            markup = builder.markdown_parser.convert(markup).strip()
 
-    # Write HTML to output directory
-    filename = permalink[1:]
-    if filename == '' or filename.endswith('/'):
-        filename += 'index.html'
+        local_vars['content'] = markup
 
-    html_file = path.join(dstdir, filename)
-    if verbose and path.exists(html_file):
-        log += '   warning: overwriting existing page with same name!\n'
+        # Render layout
+        try:
+            template = tpl_env.get_template(header['layout'] + '.html')
+            html = template.render(**local_vars)
+        except jinja2.exceptions.TemplateError as e:
+            if builder.verbose:
+                log.append(f'\t  rendering page content failed: {e.message}')
+            else:
+                builder.print(f'\t>  rendering page content failed for {rel_page_path}: {e.message}')
+            return False
 
-    html_dir = path.dirname(html_file)
-    makedirs(html_dir, exist_ok=True)
-    with open(html_file, 'w', encoding='utf-8') as file_stream:
-        file_stream.write(html)
+        # Clean up HTML
+        html = html.replace('\r\n', '\n').replace('\r', '\n')
+        html = builder.minify(html)
+        html = builder.prettify(html)
 
-    if verbose:
-        print(log)
+        # Write HTML to output directory
+        filename = permalink[1:]
+        if filename == '' or filename.endswith('/'):
+            filename += 'index.html'
 
-    return log
+        html_file = path.join(dstdir, filename)
+        if builder.verbose and path.exists(html_file):
+            log.append('\t  warning: overwriting existing page with same name!')
+
+        html_dir = path.dirname(html_file)
+        makedirs(html_dir, exist_ok=True)
+        with open(html_file, 'w', encoding='utf-8') as file_stream:
+            file_stream.write(html)
+    finally:
+        if builder.verbose:
+            builder.print('\n'.join(log))
+
+    return True
