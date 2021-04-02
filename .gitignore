@@ -1,8 +1,4 @@
 *.pyc
 __pycache__/
 
-Pipfile
-Pipfile.lock
 .idea/
-
-test/
