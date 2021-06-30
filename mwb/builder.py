@@ -118,10 +118,10 @@ class WebsiteBuilder:
         if not self.silent:
             print(message, flush=True)
 
-    def build(self, dstdir):
+    def build(self, dstdir, clean=False):
         # Clear output directory
         self.print(f'Preparing output directory {dstdir}')
-        if path.exists(dstdir):
+        if clean and path.exists(dstdir):
             shutil.rmtree(dstdir)
         makedirs(dstdir, exist_ok=True)
 
