@@ -121,8 +121,7 @@ class WebsiteBuilder:
     def build(self, dstdir, clean=False):
         # Check that theme is there
         if len(glob(path.join(self.theme, '*'))) == 0:
-            self.print('Theme is missing, did you clone the repository with --recurse-submodules?')
-            return
+            raise RuntimeError('Theme is missing, did you clone the repository with --recurse-submodules?')
 
         # Clear output directory
         self.print(f'Preparing output directory {dstdir}')

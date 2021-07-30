@@ -26,16 +26,23 @@ builder = WebsiteBuilder(
     verbose=args.verbose, silent=args.silent,
     minify=args.minify, prettify=args.prettify
 )
-builder.build(path.abspath(args.dstdir))
 
-# Start webserver?
-if args.serve:
-    handler_class = partial(http.server.SimpleHTTPRequestHandler, directory=args.dstdir)
-    with http.server.ThreadingHTTPServer(('localhost', 8000), handler_class) as httpd:
-        host, port = httpd.socket.getsockname()[:2]
-        print(f"Serving website on http://{host}:{port} from {args.dstdir} ...")
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("\nKeyboard interrupt")
-            sys.exit(0)
+try:
+    builder.build(path.abspath(args.dstdir))
+except RuntimeError as e:
+    if len(e.args) > 0:
+        print(e.args[0])
+    else:
+        print(f"An unknown error occured: {e}")
+else:
+    # Start webserver?
+    if args.serve:
+        handler_class = partial(http.server.SimpleHTTPRequestHandler, directory=args.dstdir)
+        with http.server.ThreadingHTTPServer(('localhost', 8000), handler_class) as httpd:
+            host, port = httpd.socket.getsockname()[:2]
+            print(f"Serving website on http://{host}:{port} from {args.dstdir} ...")
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("\nKeyboard interrupt")
+                sys.exit(0)
