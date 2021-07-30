@@ -33,7 +33,7 @@ if args.serve:
     handler_class = partial(http.server.SimpleHTTPRequestHandler, directory=args.dstdir)
     with http.server.ThreadingHTTPServer(('localhost', 8000), handler_class) as httpd:
         host, port = httpd.socket.getsockname()[:2]
-        print(f"Serving website on port {port} from {args.dstdir} ...")
+        print(f"Serving website on http://{host}:{port} from {args.dstdir} ...")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
