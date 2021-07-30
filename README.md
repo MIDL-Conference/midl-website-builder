@@ -9,23 +9,12 @@ Each years edition will have a website maintained mostly by the conference organ
 editing and deploying the website as simple as possible, many components that are usually very
 much configurable in static website generators are fixed and the repository structure is hardcoded.
 
-## Installation
-
-Using pipenv:
-
-```
-cd midl-website-2018/
-pipenv install -e git+https://github.com/MIDL-Conference/midl-website-builder.git@1.0#egg=mwb
-```
-
-This installs version 1.0 with all dependencies.
-
 ## Usage
 
 Just call the module and specify input and output paths:
 
 ```
-pipenv run python -m mwb . output/
+python -m mwb . output/
 ```
 
 By default, the builder displays information about the build process. This can be disable with
@@ -34,6 +23,9 @@ By default, the builder displays information about the build process. This can b
 The builder produces minified HTML. This can be turned off with the `--no-minify` switch. The
 produced HTML can optinally also be prettified with the `--prettify` switch. These are mainly
 intended for debugging purposes and not for a production environment.
+
+The `--server` switch will trigger the builder to start a HTTP server on port 8000 after the
+build has finished. This can be used for local testing.
 
 ## Features and expected structure
 
