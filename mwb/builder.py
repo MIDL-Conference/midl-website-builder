@@ -84,7 +84,7 @@ class Prettifier:
 
 
 class WebsiteBuilder:
-    def __init__(self, srcdir, verbose=False, silent=False, minify=True, prettify=False):
+    def __init__(self, srcdir, *, content=None, verbose=False, silent=False, minify=True, prettify=False):
         self.srcdir = srcdir
 
         if verbose and silent:
@@ -93,6 +93,9 @@ class WebsiteBuilder:
         self.silent = silent
 
         self.config = self.read_global_configuration()
+        if content is not None:
+            print(f'Overwriting content source, using "{content}" instead of "{self.config["content"]}"')
+            self.config['content'] = content
 
         # Populate scss namespace with variables from global configuration
         namespace = scss.namespace.Namespace()
@@ -118,7 +121,7 @@ class WebsiteBuilder:
         if not self.silent:
             print(message, flush=True)
 
-    def build(self, dstdir, clean=False):
+    def build(self, dstdir, *, clean=False):
         # Check that theme is there
         if len(glob(path.join(self.theme, '*'))) == 0:
             raise RuntimeError('Theme is missing, did you clone the repository with --recurse-submodules?')

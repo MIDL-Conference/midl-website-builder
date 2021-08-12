@@ -12,6 +12,7 @@ from .builder import WebsiteBuilder
 parser = ArgumentParser()
 parser.add_argument('srcdir', default='.')
 parser.add_argument('dstdir', default='./output')
+parser.add_argument('--content', help='Overwrite content source defined in website.yaml')
 parser.add_argument('--silent', action='store_true', help='Do not display any info during compilation.')
 parser.add_argument('--verbose', action='store_true', help='Display all compiled pages, not only errors.')
 parser.add_argument('--prettify', action='store_true')
@@ -23,6 +24,7 @@ args.minify = not args.no_minify
 # Build website
 builder = WebsiteBuilder(
     path.abspath(args.srcdir),
+    content=args.content,
     verbose=args.verbose, silent=args.silent,
     minify=args.minify, prettify=args.prettify
 )
