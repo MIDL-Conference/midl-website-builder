@@ -17,6 +17,7 @@ parser.add_argument('--silent', action='store_true', help='Do not display any in
 parser.add_argument('--verbose', action='store_true', help='Display all compiled pages, not only errors.')
 parser.add_argument('--prettify', action='store_true')
 parser.add_argument('--no-minify', action='store_true')
+parser.add_argument('--clear', action='store_true', help='Clear the output directory if it exists already')
 parser.add_argument('--serve', action='store_true', help='Start a webserver after building the site')
 args = parser.parse_args()
 args.minify = not args.no_minify
@@ -30,7 +31,7 @@ builder = WebsiteBuilder(
 )
 
 try:
-    builder.build(path.abspath(args.dstdir))
+    builder.build(path.abspath(args.dstdir), clear=args.clear)
 except RuntimeError as e:
     if len(e.args) > 0:
         print(e.args[0])
